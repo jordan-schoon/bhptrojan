@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+
+
 import base64
 import github3
 import importlib
@@ -10,8 +13,8 @@ from datetime import datetime
 
 def connect_to_github():
     with open('mytoken.txt') as f:
-        token = f.read()
-        user = 'tiarno' 
+        token = f.read().strip()
+        user = 'jordan-schoon' 
         sess = github3.login(token=token)
         return sess.repository(user, 'bhptrojan')
     
